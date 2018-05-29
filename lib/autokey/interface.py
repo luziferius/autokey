@@ -987,7 +987,9 @@ class XInterfaceBase(threading.Thread):
         if cm.ConfigManager.SETTINGS[cm_constants.ENABLE_QT4_WORKAROUND] or self.__enableQT4Workaround:
             self.__doQT4Workaround(keyCode)
         self.__sendKeyPressEvent(keyCode, modifiers, theWindow)
+        time.sleep(0.01)
         self.__sendKeyReleaseEvent(keyCode, modifiers, theWindow)
+        time.sleep(0.01)
 
     def __checkWorkaroundNeeded(self):
         focus = self.localDisplay.get_input_focus().focus
