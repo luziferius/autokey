@@ -25,6 +25,16 @@ sections. The resulting token generator can be used by a parser to parse macro d
 import re
 import typing
 import abc
+import inspect
+
+
+def _extract_phrase_macro_keywords() -> typing.Set[str]:
+    """Get all keywords by iterating over the macro module and extracting the ID of all AbstractMacro subclasses."""
+    import autokey.macro
+    all_classes = (class_info[1] for class_info in inspect.getmembers(autokey.macro, inspect.isclass))
+    return {cls.ID for cls in all_classes if cls
+            # Because issubclass(A, A) is True, make sure to exclude the abstract base class.
+            is not autokey.macro.AbstractMacro and issubclass(cls, autokey.macro.AbstractMacro)}
 
 
 Token = typing.NamedTuple("Token", [("typ", str), ("value", str), ("line", int), ("column", int)])
@@ -78,10 +88,11 @@ class PhraseTokenizer(AbstractTokenizer):
     The Phrase tokenizer is used to split user phrases.
     The result can be used to parse <macro> tags in phrases.
     """
+
+    KEYWORDS = _extract_phrase_macro_keywords()
+
     def __init__(self):
-        self.keywords = {
-            "cursor", "date", "file", "script"
-        }
+
         # When adding new special characters: Remember to exclude them in the OTHER Token. Otherwise, it will greedily
         # swallow those. E.g. if [] brackets are added but not excluded in OTHER, because OTHER is greedy, in example
         # input "Ab[e", the "[" will be swallowed by OTHER and the expected "[" match won’t occur.
@@ -89,7 +100,7 @@ class PhraseTokenizer(AbstractTokenizer):
             AbstractTokenizer.TokenSpecification("BEGIN", r"<"),  # Macro begin
             AbstractTokenizer.TokenSpecification("END", r">"),  # Macro end
             AbstractTokenizer.TokenSpecification("ASSIGN", r"="),  # Parameter value assignment
-            AbstractTokenizer.TokenSpecification("MACRO", "|".join(self.keywords)),  # Identifiers
+            AbstractTokenizer.TokenSpecification("MACRO", "|".join(PhraseTokenizer.KEYWORDS)),  # Identifiers
             AbstractTokenizer.TokenSpecification('NEWLINE', r"\n"),  # Line endings
             AbstractTokenizer.TokenSpecification("SPACE", r" +"),  # Space. Delimits multiple macro parameters
             AbstractTokenizer.TokenSpecification("STRING_DELIMITER", r'"'),  # Marks begin and end of parameter values
