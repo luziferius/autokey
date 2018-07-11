@@ -28,16 +28,20 @@ import abc
 import inspect
 
 
-def _extract_phrase_macro_keywords() -> typing.Set[str]:
+Token = typing.NamedTuple("Token", [("typ", str), ("value", str), ("line", int), ("column", int)])
+
+
+def extract_phrase_macro_classes():
     """Get all keywords by iterating over the macro module and extracting the ID of all AbstractMacro subclasses."""
     import autokey.macro
+
     all_classes = (class_info[1] for class_info in inspect.getmembers(autokey.macro, inspect.isclass))
-    return {cls.ID for cls in all_classes if cls
-            # Because issubclass(A, A) is True, make sure to exclude the abstract base class.
-            is not autokey.macro.AbstractMacro and issubclass(cls, autokey.macro.AbstractMacro)}
-
-
-Token = typing.NamedTuple("Token", [("typ", str), ("value", str), ("line", int), ("column", int)])
+    result = {
+        cls.ID: cls for cls in all_classes if cls
+        # Because issubclass(A, A) is True, make sure to exclude the abstract base class.
+        is not autokey.macro.AbstractMacro and issubclass(cls, autokey.macro.AbstractMacro)
+    }  # type: typing.Dict[str, autokey.macro.AbstractMacro]
+    return result
 
 
 class AbstractTokenizer:
@@ -89,7 +93,8 @@ class PhraseTokenizer(AbstractTokenizer):
     The result can be used to parse <macro> tags in phrases.
     """
 
-    KEYWORDS = _extract_phrase_macro_keywords()
+    # These keywords are defined in the *Macro classes and are used by the user to specify the Macro inside a phrase.
+    KEYWORDS = set(extract_phrase_macro_classes().keys())
 
     def __init__(self):
 
@@ -100,12 +105,14 @@ class PhraseTokenizer(AbstractTokenizer):
             AbstractTokenizer.TokenSpecification("BEGIN", r"<"),  # Macro begin
             AbstractTokenizer.TokenSpecification("END", r">"),  # Macro end
             AbstractTokenizer.TokenSpecification("ASSIGN", r"="),  # Parameter value assignment
-            AbstractTokenizer.TokenSpecification("MACRO", "|".join(PhraseTokenizer.KEYWORDS)),  # Identifiers
+            AbstractTokenizer.TokenSpecification("MACRO", "|".join(PhraseTokenizer.KEYWORDS)),  # Macro identifiers
             AbstractTokenizer.TokenSpecification('NEWLINE', r"\n"),  # Line endings
             AbstractTokenizer.TokenSpecification("SPACE", r" +"),  # Space. Delimits multiple macro parameters
             AbstractTokenizer.TokenSpecification("STRING_DELIMITER", r'"'),  # Marks begin and end of parameter values
             AbstractTokenizer.TokenSpecification("STRING_ESCAPE", r'\\'),  # Escapes string delimiters in strings
-            # Any other character sequence.
+            # Any other character sequence. Matches everything excluding special symbols. This does not swallow MACRO
+            # keywords, because those follow after BEGIN (or maybe SPACE) and are matched first because of the group
+            # matching order.
             AbstractTokenizer.TokenSpecification("OTHER", r'[^<>= \\"' + '\n' + ']+')
         )
         # super class __init__ called last, because it needs the data specified above
