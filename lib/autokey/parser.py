@@ -109,7 +109,7 @@ class PhraseParser:
           Those cases are most probable, when the user wants to dynamically generate HTML or XML code.
         """
         collected_items = collections.deque()  # type: TokenQueue
-        collected_items.append(self.token_queue.popleft())
+        collected_items.append(self.token_queue.popleft())  # collect BEGIN
         self._request_next()
         if self._try_collect_macro(collected_items):
             pass
@@ -122,9 +122,49 @@ class PhraseParser:
 
     def _try_collect_macro(self, collected_items: TokenQueue) -> bool:
         """
-        Try to linearly collect ma
-        :return:
+        Try to linearly collect macro tokens. BEGIN is already collected.
+        :return: True, if successful, False otherwise. If False, the collected_items are parsed as a regular string
         """
+        # Collect any space between BEGIN and MACRO. Thus '<    cursor>' will be a valid macro.
+        if not self._try_collect_space(collected_items):
+            return False
+        # Now, the next token must be a MACRO token
+        if not self._try_collect_macro_token(collected_items):
+            return False
+
+    def _try_collect_space(self, collected_items: TokenQueue) -> bool:
+        """
+        Collect the next token, if it is a SPACE token. Otherwise, do nothing.
+        :param collected_items: Queue containing all tokens collected during macro parsing
+        :return: True, if the queue still contains items, False otherwise
+        """
+        item = self.token_queue.popleft()
+        if item.typ == "SPACE":
+            collected_items.append(item)
+            self._request_next()
+        else:
+            # Not a space, so do nothing, just push the item back
+            self.token_queue.appendleft(item)
+        return bool(self.token_queue)
+
+    def _try_collect_macro_token(self, collected_items: TokenQueue) -> bool:
+        """
+        Collect the next token, if it is a MACRO token. Otherwise, do nothing.
+        :param collected_items: Queue containing all tokens collected during macro parsing
+        :return: True, if a MACRO was collected and the queue still contains items, False otherwise
+        """
+        item = self.token_queue.popleft()
+        collected_items.append(item)
+        self._request_next()
+
+        return (item.typ == "MACRO") and bool(self.token_queue)
+
+    def _build_macro_parameters(self, collected_items: TokenQueue):
+        # The last queued item is a MACRO token, thus the token value is by construction a valid key for MACRO_CLASSES.
+        macro_class = MacroSection.MACRO_CLASSES[collected_items[-1].value]
+        required_parameters = [arg[0] for arg in macro_class.ARGS]  # split (name, gui description) tuples
+
+
 
     def _request_next(self):
         try:
