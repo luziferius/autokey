@@ -69,7 +69,7 @@ class AbstractTokenizer:
 
     @property
     def compiled_expression(self) -> typing.Pattern:
-        """Returns a compiled regular expression pattern used for the tokenizer."""
+        """Returns a compiled regular expression pattern used by the tokenizer."""
         return self._compiled_expression
 
     def tokenize(self, code: str) -> typing.Generator[Token, None, None]:
@@ -107,13 +107,13 @@ class PhraseTokenizer(AbstractTokenizer):
             AbstractTokenizer.TokenSpecification("ASSIGN", r"="),  # Parameter value assignment
             AbstractTokenizer.TokenSpecification("MACRO", "|".join(PhraseTokenizer.KEYWORDS)),  # Macro identifiers
             AbstractTokenizer.TokenSpecification('NEWLINE', r"\n"),  # Line endings
-            AbstractTokenizer.TokenSpecification("SPACE", r" +"),  # Space. Delimits multiple macro parameters
+            AbstractTokenizer.TokenSpecification("SPACE", r"[ \t]+"),  # Space. Delimits multiple macro parameters
             AbstractTokenizer.TokenSpecification("STRING_DELIMITER", r'"'),  # Marks begin and end of parameter values
             AbstractTokenizer.TokenSpecification("STRING_ESCAPE", r'\\'),  # Escapes string delimiters in strings
             # Any other character sequence. Matches everything excluding special symbols. This does not swallow MACRO
             # keywords, because those follow after BEGIN (or maybe SPACE) and are matched first because of the group
             # matching order.
-            AbstractTokenizer.TokenSpecification("OTHER", r'[^<>= \\"' + '\n' + ']+')
+            AbstractTokenizer.TokenSpecification("OTHER", r'[^<>= \t\\"' + '\n' + ']+')
         )
         # super class __init__ called last, because it needs the data specified above
         super(PhraseTokenizer, self).__init__()
