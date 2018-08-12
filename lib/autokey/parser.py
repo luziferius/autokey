@@ -160,11 +160,16 @@ class PhraseParser:
         return (item.typ == "MACRO") and bool(self.token_queue)
 
     def _build_macro_parameters(self, collected_items: TokenQueue):
+        """
+        Parse the to be used macro class and the parameter list.
+        :raises KeyError: If the requested macro class is not found.
+        """
         # The last queued item is a MACRO token, thus the token value is by construction a valid key for MACRO_CLASSES.
         macro_class = MacroSection.MACRO_CLASSES[collected_items[-1].value]
-        required_parameters = [arg[0] for arg in macro_class.ARGS]  # split (name, gui description) tuples
-
-
+        required_parameters = [arg[0] for arg in macro_class.ARGS]  # split (name, gui_description) tuples
+        self._try_collect_space(collected_items)
+        while self.token_queue[0].typ != "END":
+            pass
 
     def _request_next(self):
         try:
