@@ -75,3 +75,39 @@ class Mouse:
         button = int(button)
         w = autokey.iomediator.Waiter(None, None, button, timeOut)
         w.wait()
+
+    def press_mouse_buttons(self, buttons: typing.Union[int, typing.Iterable[int]]):
+        """
+        Press and hold the given mouse button(s). The buttons parameter accepts both a single button as an integer or
+        any iterable containing multiple mouse buttons. The button(s) are pressed at the current mouse cursor position.
+
+        Usage: C{mouse.press_mouse_buttons(1)} to press and hold the left mouse button
+        Or: C{mouse.press_mouse_buttons([2, 3])} to press and hold both the middle and right mouse button
+
+        @param buttons: Mouse button or list of mouse buttons (left=1, middle=2, right=3)
+        """
+        self.interface.press_mouse_buttons(buttons)
+
+    def release_mouse_buttons(self, buttons: typing.Union[int, typing.Iterable[int]]):
+        """
+        Release the currently held, given mouse button(s). The buttons parameter accepts both a single button as an
+        integer or any iterable containing multiple mouse buttons. The button(s) are released at the current mouse
+        cursor position.
+
+        Usage: C{mouse.release_mouse_buttons(1)} to release the (currently pressed) left mouse button
+        Or: C{mouse.release_mouse_buttons([2, 3])} to to release the (currently pressed) middle and right mouse button
+
+        @param buttons: Mouse button or list of mouse buttons (left=1, middle=2, right=3)
+        """
+        self.interface.release_mouse_buttons(buttons)
+
+    def move_mouse_cursor(self, cursor_path, default_steps: int=1, default_duration_ms: float=0):
+        """
+        Move the mouse cursor alongside a given path.
+        @param cursor_path:
+        @param default_steps: Number of interpolation steps for each given movement operation. Used, if the path element
+        itself does not provide this value
+        @param default_duration_ms:
+        :return:
+        """
+        pass

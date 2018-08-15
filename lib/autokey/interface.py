@@ -829,10 +829,38 @@ class XInterfaceBase(threading.Thread):
         except Exception as e:
             logger.warning("Error sending modified key %r %r: %s", modifiers, keyName, str(e))
 
+    def press_mouse_buttons(self, buttons: typing.Union[int, typing.Iterable[int]]):
+        """
+        Press the given mouse button(s). This causes all given buttons to be held until released again.
+        This function is used for a drag and drop implementation.
+        """
+        self.__enqueue(self._change_mouse_button_state, X.ButtonPress, buttons)
+
+    def release_mouse_buttons(self, buttons: typing.Union[int, typing.Iterable[int]]):
+        """
+        Release the given mouse button(s). This causes all given buttons to be released.
+        This function is used for a drag and drop implementation.
+        """
+        self.__enqueue(self._change_mouse_button_state, X.ButtonRelease, buttons)
+
+    def _change_mouse_button_state(self, state: int, buttons: typing.Union[int, typing.Iterable[int]]):
+        """
+        Change the state of the given mouse button(s) to state.
+        :param state: X.ButtonPress to press and hold a button, X.ButtonRelease to release a held button.
+        :param buttons: single button (as integer) or iterable containing buttons (as integers)
+        :return:
+        """
+        pos = self.rootWindow.query_pointer()
+        try:
+            for button in buttons:
+                xtest.fake_input(self.rootWindow, state, button, x=pos.root_x, y=pos.root_y)
+        except TypeError:  # Happens, if buttons is not iterable
+            xtest.fake_input(self.rootWindow, state, buttons, x=pos.root_x, y=pos.root_y)
+
     def send_mouse_click(self, xCoord, yCoord, button, relative):
         self.__enqueue(self.__sendMouseClick, xCoord, yCoord, button, relative)
-        
-    def __sendMouseClick(self, xCoord, yCoord, button, relative):    
+
+    def __sendMouseClick(self, xCoord, yCoord, button, relative):
         # Get current pointer position so we can return it there
         pos = self.rootWindow.query_pointer()
 
@@ -861,8 +889,8 @@ class XInterfaceBase(threading.Thread):
         yCoord = pos.root_y + yoff
 
         self.rootWindow.warp_pointer(xCoord, yCoord)
-        xtest.fake_input(self.rootWindow, X.ButtonPress, button, x=xCoord, y=yCoord)
-        xtest.fake_input(self.rootWindow, X.ButtonRelease, button, x=xCoord, y=yCoord)
+        self._send_button_press_event(button)
+        self._send_button_release_event(button)
 
         self.rootWindow.warp_pointer(pos.root_x, pos.root_y)
 
@@ -997,44 +1025,74 @@ class XInterfaceBase(threading.Thread):
             self.lastChars.pop(0)
 
     def __sendKeyPressEvent(self, keyCode, modifiers, theWindow=None):
-        if theWindow is None:
-            focus = self.localDisplay.get_input_focus().focus
-        else:
-            focus = theWindow
-        keyEvent = event.KeyPress(
-                                  detail=keyCode,
-                                  time=X.CurrentTime,
-                                  root=self.rootWindow,
-                                  window=focus,
-                                  child=X.NONE,
-                                  root_x=1,
-                                  root_y=1,
-                                  event_x=1,
-                                  event_y=1,
-                                  state=modifiers,
-                                  same_screen=1
-                                  )
-        focus.send_event(keyEvent)
+        self._send_key_event(event.KeyPress, keyCode, modifiers, theWindow)
 
     def __sendKeyReleaseEvent(self, keyCode, modifiers, theWindow=None):
-        if theWindow is None:
+        self._send_key_event(event.KeyRelease, keyCode, modifiers, theWindow)
+
+    def _send_key_event(self, event_type, key_code: int, modifiers, target_window):
+        if target_window is None:
             focus = self.localDisplay.get_input_focus().focus
         else:
-            focus = theWindow
-        keyEvent = event.KeyRelease(
-                                  detail=keyCode,
-                                  time=X.CurrentTime,
-                                  root=self.rootWindow,
-                                  window=focus,
-                                  child=X.NONE,
-                                  root_x=1,
-                                  root_y=1,
-                                  event_x=1,
-                                  event_y=1,
-                                  state=modifiers,
-                                  same_screen=1
-                                  )
-        focus.send_event(keyEvent)
+            focus = target_window
+        cursor_pos = self.rootWindow.query_pointer()
+        relative_pos = focus.translate_coords(self.rootWindow, cursor_pos.root_x, cursor_pos.root_y)
+        key_event = event_type(
+            detail=key_code,
+            time=X.CurrentTime,
+            root=self.rootWindow,
+            window=focus,
+            child=X.NONE,
+            root_x=cursor_pos.root_x,
+            root_y=cursor_pos.root_y,
+            event_x=relative_pos.x,
+            event_y=relative_pos.y,
+            state=modifiers,
+            same_screen=1
+        )
+        focus.send_event(key_event)
+
+    def _send_button_release_event(self, button: int, modifiers=0, target_window=None):
+        """Press and hold a mouse button."""
+        self._send_button_event(event.ButtonRelease, button, modifiers, target_window)
+
+    def _send_button_press_event(self, button: int, modifiers=0, target_window=None):
+        """
+        Release a hold mouse button.
+
+        """
+        self._send_button_event(event.ButtonPress, button, modifiers, target_window)
+
+    def _send_button_event(self, event_class, button: int, modifiers, target_window):
+        """
+        Send a Button Event. This can be a ButtonPress or ButtonRelease event.
+        Currently
+        :param event_class: The generated event type
+        :param button: Mouse button (int) used in the event
+        :param modifiers: Optional keyboard modifiers
+        :param target_window: The target window (optional). If unset, the currently focussed window receives the event
+        """
+        if target_window is None:
+            focus = self.localDisplay.get_input_focus().focus
+        else:
+            focus = target_window
+
+        cursor_pos = self.rootWindow.query_pointer()
+        relative_pos = focus.translate_coords(self.rootWindow, cursor_pos.root_x, cursor_pos.root_y)
+        button_event = event_class(
+            detail=button,
+            time=X.CurrentTime,
+            root=self.rootWindow,
+            window=focus,
+            child=X.NONE,
+            root_x=cursor_pos.root_x,
+            root_y=cursor_pos.root_y,
+            event_x=relative_pos.x,
+            event_y=relative_pos.y,
+            state=modifiers,
+            same_screen=1
+        )
+        focus.send_event(button_event, propagate=True)
 
     def __lookupKeyCode(self, char: str) -> int:
         if char in AK_TO_XK_MAP:
@@ -1061,7 +1119,7 @@ class XInterfaceBase(threading.Thread):
             if str(e) == "'int' object has no attribute 'get_property'":
                 return ""
             raise
-        except error.BadWindow as e:#TODO_PY3
+        except error.BadWindow as e:  # TODO_PY3
             logger.exception("Got BadWindow error.")
             return ""
         except:  # Default handler
@@ -1090,10 +1148,11 @@ class XInterfaceBase(threading.Thread):
             return self._get_window_class(windowvar, traverse)
         except AttributeError as e:
             if str(e)=="'int' object has no attribute 'get_wm_class'":
+                # TODO: what’s this?
                 return ""
             raise
         except error.BadWindow as e:#TODO_PY3
-            print(__name__, repr(e))
+            logger.exception("Got a BadWindow error")
             return ""
         # except:
         #     return ""
@@ -1143,7 +1202,7 @@ class XRecordInterface(XInterfaceBase):
                         'ext_requests': (0, 0, 0, 0),
                         'ext_replies': (0, 0, 0, 0),
                         'delivered_events': (0, 0),
-                        'device_events': (X.KeyPress, X.ButtonPress), #X.KeyRelease,
+                        'device_events': (X.KeyPress, X.ButtonPress),  # X.KeyRelease,
                         'errors': (0, 0),
                         'client_started': False,
                         'client_died': False,
