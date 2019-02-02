@@ -1,6 +1,7 @@
 import threading
 import queue
 import logging
+import time
 
 from autokey.configmanager.configmanager import ConfigManager
 from autokey.configmanager.configmanager_constants import INTERFACE_TYPE
@@ -221,6 +222,7 @@ class IoMediator(threading.Thread):
         """
         for i in range(count):
             self.interface.send_key(Key.BACKSPACE)
+            time.sleep(0.01)
 
     def flush(self):
         self.interface.flush()
